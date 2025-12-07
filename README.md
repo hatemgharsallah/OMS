@@ -26,6 +26,9 @@ python manage.py test
 
 ## API documentation (Swagger / ReDoc)
 Interactive docs are available once the server is running:
+http://localhost:8000/swagger/
+<img width="2260" height="1349" alt="image" src="https://github.com/user-attachments/assets/5155d9c8-ecd1-42c9-8932-5dc32fdc756a" />
+
 
 - JSON/YAML schema: `GET /swagger.json` or `GET /swagger.yaml`
 - Swagger UI: `GET /swagger/`
