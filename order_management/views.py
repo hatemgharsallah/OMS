@@ -1,8 +1,7 @@
-from rest_framework import status
+from rest_framework import generics, serializers, status
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
-from .models import Order
+from .models import FulfillmentRequest, Invoice, Order
 from .serializers import (
     FulfillmentRequestSerializer,
     InvoiceSerializer,
@@ -11,52 +10,63 @@ from .serializers import (
 )
 
 
-class OrderCreateView(APIView):
-    def post(self, request):
-        serializer = OrderSerializer(data=request.data)
-        if serializer.is_valid():
-            order = serializer.save()
-            return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+class OrderCreateView(generics.ListCreateAPIView):
+    queryset = Order.objects.prefetch_related("items")
+    serializer_class = OrderSerializer
 
 
-class OrderUpdateView(APIView):
-    def patch(self, request, pk):
+class OrderUpdateView(generics.RetrieveUpdateAPIView):
+    queryset = Order.objects.prefetch_related("items")
+
+    def get_serializer_class(self):
+        if self.request.method.lower() == "get":
+            return OrderSerializer
+        return OrderStatusUpdateSerializer
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(OrderSerializer(instance).data, status=status.HTTP_200_OK)
+
+
+class InvoiceCreateView(generics.ListCreateAPIView):
+    queryset = Invoice.objects.select_related("order")
+    serializer_class = InvoiceSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
         try:
-            order = Order.objects.get(pk=pk)
-        except Order.DoesNotExist:
-            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
-        serializer = OrderStatusUpdateSerializer(order, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(OrderSerializer(order).data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            serializer.is_valid(raise_exception=True)
+        except serializers.ValidationError as exc:
+            errors = exc.detail
+            if isinstance(errors, dict) and "order" in errors:
+                order_errors = errors.get("order")
+                if order_errors and any("does not exist" in str(err) for err in order_errors):
+                    return Response(errors, status=status.HTTP_404_NOT_FOUND)
+            raise
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
-class InvoiceCreateView(APIView):
-    def post(self, request):
-        serializer = InvoiceSerializer(data=request.data)
-        if serializer.is_valid():
-            invoice = serializer.save()
-            return Response(InvoiceSerializer(invoice).data, status=status.HTTP_201_CREATED)
-        # differentiate not found
-        if isinstance(serializer.errors, dict) and "order" in serializer.errors:
-            order_errors = serializer.errors.get("order")
-            if order_errors and any("does not exist" in str(err) for err in order_errors):
-                return Response(serializer.errors, status=status.HTTP_404_NOT_FOUND)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+class FulfillmentRequestCreateView(generics.ListCreateAPIView):
+    queryset = FulfillmentRequest.objects.select_related("order")
+    serializer_class = FulfillmentRequestSerializer
 
-
-class FulfillmentRequestCreateView(APIView):
-    def post(self, request):
-        serializer = FulfillmentRequestSerializer(data=request.data)
-        if serializer.is_valid():
-            fulfillment = serializer.save()
-            return Response(
-                FulfillmentRequestSerializer(fulfillment).data, status=status.HTTP_201_CREATED
-            )
-        if isinstance(serializer.errors, dict) and "order" in serializer.errors:
-            order_errors = serializer.errors.get("order")
-            if order_errors and any("does not exist" in str(err) for err in order_errors):
-                return Response(serializer.errors, status=status.HTTP_404_NOT_FOUND)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except serializers.ValidationError as exc:
+            errors = exc.detail
+            if isinstance(errors, dict) and "order" in errors:
+                order_errors = errors.get("order")
+                if order_errors and any("does not exist" in str(err) for err in order_errors):
+                    return Response(errors, status=status.HTTP_404_NOT_FOUND)
+            raise
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)

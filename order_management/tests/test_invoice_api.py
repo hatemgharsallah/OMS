@@ -50,3 +50,12 @@ class InvoiceAPITests(APITestCase):
             self.url, {"order": self.order.id, "amount": 100.00, "payment_method": "COD"}, format="json"
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_get_invoices_returns_list(self):
+        self.client.post(
+            self.url, {"order": self.order.id, "amount": 120.50, "payment_method": "COD"}, format="json"
+        )
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["order"], self.order.id)
