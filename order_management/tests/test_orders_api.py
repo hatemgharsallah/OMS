@@ -36,6 +36,13 @@ class OrderAPITests(APITestCase):
         self.assertEqual(order.items.count(), 2)
         self.assertEqual(order.status, Order.Status.PENDING)
 
+    def test_get_orders_returns_list(self):
+        self.client.post(self.url, self.payload, format="json")
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["external_id"], self.payload["external_id"])
+
     def test_create_order_requires_items(self):
         payload = {**self.payload, "items": []}
         response = self.client.post(self.url, payload, format="json")
@@ -72,6 +79,14 @@ class OrderAPITests(APITestCase):
         order.save()
         response = self.client.patch(f"/api/orders/update/{order.id}", {"status": Order.Status.PENDING}, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_get_order_detail(self):
+        self.client.post(self.url, self.payload, format="json")
+        order = Order.objects.get()
+        response = self.client.get(f"/api/orders/update/{order.id}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], order.id)
+        self.assertEqual(response.data["external_id"], self.payload["external_id"])
 
     def test_update_order_not_found(self):
         response = self.client.patch("/api/orders/update/999", {"status": Order.Status.CONFIRMED}, format="json")
