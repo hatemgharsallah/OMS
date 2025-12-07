@@ -15,7 +15,7 @@ Order Management System (Django REST API).
 3. Run migrations and start the server:
    ```bash
    python manage.py migrate
-   python manage.py runserver 0.0.0.0:8000
+   python manage.py runserver
    ```
 
 ## Running tests
